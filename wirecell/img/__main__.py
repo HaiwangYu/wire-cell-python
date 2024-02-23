@@ -194,16 +194,17 @@ def plot_blobs(ctx, plot, clusters, plot_file):
 
 @cli.command("dump-blobs")
 @cluster_file
+@click.option("--scale", default=1.0, help="scale blob charge")
 @click.option("-o", "--output", default="/dev/stdout", help="output file name")
 @click.option("-s", "--signals", default=None, help="file to dump signals")
 @click.pass_context
-def dump_blobs(ctx, clusters, output, signals):
+def dump_blobs(ctx, clusters, scale, signals, output):
     '''
     dump blob signatures in cluster to a file.
     '''
     import wirecell.img.dump_blobs as db
     for gr in clusters:
-        db.dump_blobs(gr, signals, output)
+        db.dump_blobs(gr, scale, signals, output)
 
 @cli.command("dump-bb-clusters")
 @cluster_file
@@ -368,9 +369,9 @@ def paraview_blobs(ctx, clusters, paraview_file):
     from . import converter, tap
     from tvtk.api import write_data
 
-    if len(clusters) == 0:
-        log.error('no graphs')
-        sys.exit(-1)
+    # if len(clusters) == 0:
+    #     log.error('no graphs')
+    #     sys.exit(-1)
 
     for n, gr in enumerate(clusters):
         if 0 == gr.number_of_nodes():

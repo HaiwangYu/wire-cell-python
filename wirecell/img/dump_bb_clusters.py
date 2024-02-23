@@ -77,7 +77,12 @@ def csignature(gr, bc):
     charge_u = sum(bsigs[:,8])
     charge_v = sum(bsigs[:,9])
     charge_w = sum(bsigs[:,10])
-    min_bid = min(bsigs[:,11])
+    min_bid = min(bsigs[:,14])
+    # tbound = (min_start, max_start)
+    # if tbound in [(740, 752), (740, 756)]:
+    #     print(f'tbound {tbound} {bsigs.shape}')
+    #     for i in range(bsigs.shape[0]):
+    #         print(bsigs[i,0:11], bsigs[i,14])
     return np.array([min_start, max_start, nblob,
                      min_u, max_u, min_v, max_v, min_w, max_w,
                      charge_u, charge_v, charge_w])
@@ -90,6 +95,7 @@ def _sort(arr):
 
 def dump_bb_clusters(gr):
     # graph with only blobs
+    print('WCT:')
     bnodes = nodes_oftype(gr,'b')
     print(f'#bnodes: {len(bnodes)}')
     bgr = gr.subgraph(bnodes)
@@ -101,12 +107,13 @@ def dump_bb_clusters(gr):
         csigs.append(csig)
     csigs = np.array(csigs)
     csigs = _sort(csigs)
-    print(f'#b in clusters: {sum(csigs[:,2])}')
+    # print(f'#b in clusters: {sum(csigs[:,2])}')
     # csigs = csigs[csigs[:,0]==400,:]
     print(csigs.shape)
     for i in range(csigs.shape[0]):
         print(csigs[i,0:2], csigs[i,2],
             csigs[i,3], ',', csigs[i,4]+1, ',',
             csigs[i,5], ',', csigs[i,6]+1, ',',
-            csigs[i,7], ',', csigs[i,8]+1,
-            csigs[i,9:])
+            csigs[i,7], ',', csigs[i,8]+1
+            ,csigs[i,9:]
+            )

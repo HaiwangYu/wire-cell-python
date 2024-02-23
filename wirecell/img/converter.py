@@ -147,11 +147,25 @@ def clusters2blobs(gr):
     Given a graph object return a tvtk data object with blobs.
     '''
     from tvtk.api import tvtk
+    t2xscale = 1.6/1000 # 1ns ~ 1.6/1000 mm
 
     all_points = list()
     blob_cells = list()
     datasetnames = set()
     values = list()
+
+    import networkx as nx
+    def nodes_oftype(gr, typecode):
+        return [n for n,d in gr.nodes.data() if d['code'] == typecode]
+    bnodes = nodes_oftype(gr,'b')
+    bgr = gr.subgraph(bnodes)
+    clusterid = 0
+    b2cid = dict()
+    for bc in nx.connected_components(bgr):
+        for b in bc:
+            b2cid[b] = clusterid
+        clusterid += 1
+
     for node, ndata in gr.nodes.data():
         if ndata['code'] != 'b':
             continue;
@@ -160,17 +174,20 @@ def clusters2blobs(gr):
         for key,val in ndata.items():
             if key == 'corners':
                 pts = orderpoints(val)
+                pts = [[l[0]*t2xscale, l[1], l[2]] for l in pts]
                 continue
             if key == 'span':
-                thickness = val
+                thickness = val*t2xscale
                 continue
             if key == 'code':
-                continue
+                # hacked code for clusterid
+                key = 'clusterid'
+                val = b2cid[node]
             if key == 'bounds':
                 # dimensionality too high to convert
                 continue
             datasetnames.add(key)
-            vals[key] = val;
+            vals[key] = val
         pts,cells = extrude(pts, thickness)
         all_points += pts
         blob_cells.append((len(pts), cells))

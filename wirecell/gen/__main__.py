@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import math
+import numpy
 import click
 from wirecell import units
 from wirecell.util.functions import unitify, unitify_parse

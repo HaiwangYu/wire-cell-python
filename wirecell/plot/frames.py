@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-import os
 from wirecell import units
 from wirecell.util import ario
 from wirecell.util.plottools import lg10
@@ -67,12 +65,7 @@ def wave(dat, out, tier='orig', unit='ADC', interactive=False, **kwds):
     '''
     Plot frames
     '''
-    frame_keys = [f for f in dat.keys() if f.startswith('frame_')]
-    frames = sorted([f for f in frame_keys if f.startswith(f'frame_{tier}')])
-    if not frames:
-        found = ', '.join(frame_keys)
-        msg = f'No frames of tier "{tier}": found: {found}'
-        raise IOError(msg)
+    frames = sorted([f for f in dat.keys() if f.startswith(f'frame_{tier}')])
 
     if unit == 'ADC':
         uscale = 1
@@ -131,11 +124,26 @@ def wave(dat, out, tier='orig', unit='ADC', interactive=False, **kwds):
             plt.show()
         out.savefig(fig)
 
+import json
+import bz2
+import math
+def specs_from_file(spectra_file, planes=None, wirelen=7500, scale_factor=1.0e9):
+    wire_specs = json.loads(bz2.BZ2File(spectra_file, 'r').read())
+    for i, wire_spec in enumerate(wire_specs) :
+        if planes is not None and wire_spec['plane'] not in planes:
+            continue
+        if abs(wire_spec['wirelen']-wirelen) > 10 :
+            continue
+        print("const {:.3e} plane {}, wirelen {:.1f}".format(wire_spec['const'],wire_spec['plane'],wire_spec['wirelen']))
+#         plt.plot(wire_spec['freqs'],wire_spec['amps'],label=wire_spec['wirelen'])
+        freqs = [x*1000 for x in wire_spec['freqs']]
+        amps = [math.sqrt(x**2+(wire_spec['const'])**2)*scale_factor for x in wire_spec['amps']]
+        return (freqs,amps)
 
 def comp1d(datafiles, out, name='wave', frames='orig',
            chbeg=0, chend=1, unit='ADC', xrange=None,
            interactive=False, transforms=(),
-           markers = ['o', '.', ',', '+', 'X', "*"]
+           markers = ['o', '.', '+', 'X', "*"]
            ):
     '''Compare similar waveforms across datafiles.
 
@@ -156,19 +164,11 @@ def comp1d(datafiles, out, name='wave', frames='orig',
     The "baseline" sets if and how a re-baselining is performed.
 
     '''
+    print (transforms)
 
     # Head-off bad calls
     if name not in ['wave', 'spec']:
         raise('name not in [\'wave\', \'spec\']!')
-
-    # when run from a historical test it is common to have long,
-    # common path prefixes in the input files.  Below we apply trunc()
-    # to shorten the path names in the legend.
-    pre = os.path.commonpath(datafiles)
-    def trunc(path):
-        if path.startswith(pre):
-            return path[len(pre)+1:]
-        return path
 
     # Open data files if we have a file name, else assume an ario-like
     # file object.
@@ -201,6 +201,9 @@ def comp1d(datafiles, out, name='wave', frames='orig',
         uscale = getattr(units, unit)
         dtype = float
 
+    dtype = float
+    uscale = 4095./1400.
+
     # Note, channel numbers are in general opaquely defined.  We must
     # not assume anything about a channel array's order, monotonicity,
     # density, etc.  Note, each dat may have a different channel set.
@@ -214,6 +217,7 @@ def comp1d(datafiles, out, name='wave', frames='orig',
     def extract(fname, dat):
         frame = numpy.array(dat[fname], dtype=dtype)
         chans = channel_selection(fname, dat)
+        print(frame.shape)
         frame = frame[chans,:]
         # frame = numpy.array((frame.T - numpy.median(frame, axis=1)).T, dtype=dtype)
         if "median" in transforms:
@@ -226,6 +230,7 @@ def comp1d(datafiles, out, name='wave', frames='orig',
             frame /= 1.0*uscale
 
         if "ac" in transforms:  # treat special so we ac-couple either spec or wave
+            print("applying ac-coupled transform")
             cspec = numpy.fft.fft(frame)
             cspec[:,0] = 0      # set all zero freq bins to zero
             if name == "spec":
@@ -246,12 +251,26 @@ def comp1d(datafiles, out, name='wave', frames='orig',
             tit += ' (' + ', '.join(transforms) + ')'
         ax.set_title(tit)
 
+        if name == 'spec':
+            freqs, ampls = specs_from_file("/home/yuhw/wc/larsoft855/share/wirecell/data/protodune-noise-spectra-v1.json.bz2",
+                                           wirelen=6000)
+            ax.plot(freqs, ampls, '-', label='input')
+
+        Fnyquist = 1.0
+        nsamples = 6000
+        tick = 1.0/(2*Fnyquist)
+        ticks = numpy.arange(0, nsamples*tick, tick)
+        freqs = numpy.arange(0, 2*Fnyquist, 2*Fnyquist/nsamples)
+
         for ind, dat in enumerate(dats):
             thing = extract(fname, dat)
             marker = markers[ind%len(markers)]
             
-            tit = trunc(dat.path)+f'\nN:{thing.size} mean:{numpy.mean(thing):.2f} std:{numpy.std(thing):.3f}'
-            ax.plot(thing, marker, label=tit)
+            tit = dat.path+f'\nmean:{numpy.mean(thing):.2f} std:{numpy.std(thing):.2f}'
+            if name == 'spec':
+                ax.plot(freqs, thing, marker, label=tit)
+            else:
+                ax.plot(ticks, thing, marker, label=tit)
 
         ax.set_xlabel("tick [0.5 $\mu$s]")
         ax.legend()
@@ -313,10 +332,8 @@ def frame_means(array, channels, cmap, aname, fname):
     import matplotlib.cm as cm
     from matplotlib.colors import Normalize
     
-    # this gives more wasted white space but less likely to have axes labels overlapping
-    layout = "constrained" 
-    # this gives warning but closer to what I want.
-    # layout = "tight"
+    # layout = "constrained"
+    layout = "tight"            # this gives warning but closer to what I want.
     fig = plt.figure(layout=layout, figsize=(10,8))
     fig.suptitle(f'array "{aname}" from {fname}\nand time/channel projected means')
     # base + 
